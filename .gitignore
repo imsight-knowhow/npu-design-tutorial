@@ -121,3 +121,10 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+# pixi environments
+.pixi/*
+!.pixi/config.toml
+/pixi.lock
+
+# codex
+.codex/

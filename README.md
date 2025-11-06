@@ -1,11 +1,17 @@
-# NPU Design Tutorial
+# NPU 设计教程
 
-A tutorial for NPU (Neural Processing Unit) design.
+一个关于 NPU（神经网络处理单元）设计的教程。本项目以中文为主（Chinese‑first），面向希望系统性学习 NPU 架构与实现的读者。
 
-## Overview
+## 概述
 
-This repository contains materials and resources for learning about NPU design.
+本仓库包含用于学习 NPU 设计的材料与资源。
 
-## Getting Started
+## 语言说明
 
-More content coming soon...
+- 本项目以中文为主：文档、代码注释与提交信息优先使用简体中文。
+- 欢迎英文贡献，但以中文版本为基线；英文译文可在后续新增的 `docs/en/` 目录维护（如需可在 Issue 中提议）。
+- 专业术语在必要时保留英文原文，并配以中文解释以确保准确性与可读性。
+
+## 快速开始
+
+更多内容即将推出……
