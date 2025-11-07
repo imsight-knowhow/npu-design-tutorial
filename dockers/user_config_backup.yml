@@ -23,8 +23,8 @@ stage_1:
     users:
       me:
         password: '123456'
-        # uid: 1001
-        # gid: 1001
+        uid: 1001
+        gid: 1001
 
   # proxy settings, by default, NOT enabled
   # to enable proxy, set enable_globally to true

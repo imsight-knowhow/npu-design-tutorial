@@ -1,6 +1,6 @@
 services:
   stage-2:
-    image: npu-dev:24.04
+    image: npu-dev:stage-2
     stdin_open: true
     tty: true
     command: /bin/bash
@@ -36,12 +36,12 @@ services:
         ENABLE_GLOBAL_PROXY: false
         REMOVE_GLOBAL_PROXY_AFTER_BUILD: false
     ports:
-    - '4022:22'
+    - '40012:22'
     environment: {}
     volumes:
-    - /data2/huangzhe/docker-apps:/hard/volume/app
+    - app:/hard/volume/app
     - data:/hard/volume/data
-    - /data2/huangzhe/docker-works:/hard/volume/workspace
+    - /workspace:/hard/volume/workspace
     - home_me:/home/me
   stage-1:
     image: npu-dev:stage-1
@@ -65,12 +65,12 @@ services:
       extra_hosts:
       - host.docker.internal:host-gateway
       args:
-        BASE_IMAGE: nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
+        BASE_IMAGE: nvidia/cuda:12.6.3-devel-ubuntu24.04
         WITH_ESSENTIAL_APPS: true
         WITH_SSH: true
         SSH_USER_NAME: me
         SSH_USER_PASSWORD: '123456'
-        SSH_USER_UID: '3100'
+        SSH_USER_UID: ''
         SSH_PUBKEY_FILE: ''
         SSH_PRIVKEY_FILE: ''
         SSH_CONTAINER_PORT: 22
@@ -86,8 +86,13 @@ services:
         PEI_STAGE_DIR_1: /pei-from-host/stage-1
         ROOT_PASSWORD: ''
     ports:
-    - '4022:22'
+    - '40012:22'
     volumes: []
 volumes:
-  data: {}
+  app:
+    external: true
+    name: my-app
+  data:
+    external: true
+    name: my-data
   home_me: {}
