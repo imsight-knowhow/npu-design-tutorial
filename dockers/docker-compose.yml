@@ -70,7 +70,8 @@ services:
         WITH_SSH: true
         SSH_USER_NAME: me
         SSH_USER_PASSWORD: '123456'
-        SSH_USER_UID: ''
+        SSH_USER_UID: '1001'
+        SSH_USER_GID: '1001'
         SSH_PUBKEY_FILE: ''
         SSH_PRIVKEY_FILE: ''
         SSH_CONTAINER_PORT: 22
