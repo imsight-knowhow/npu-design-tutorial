@@ -1,190 +1,158 @@
-#!/bin/bash
+#!/bin/sh
 
-set -euo pipefail
+# Simple proxy setup helper.
+# Features:
+#   --port <port>        : proxy port (default: 7890)
+#   --base-url <base>    : proxy base URL/host (default: http://127.0.0.1)
+#   --no-check           : skip curl connectivity check
+# Behavior:
+#   - If no CLI options are given but http_proxy/HTTP_PROXY is set, reuse it as-is.
+#   - When constructing a proxy from base/port inside Docker, replace
+#     localhost/127.0.0.1 with host.docker.internal.
+
+case "$0" in
+  *setup-proxy.sh)
+    echo "Warning: setup-proxy.sh is intended to be sourced (e.g. '. setup-proxy.sh'), not executed directly." >&2
+    ;;
+esac
+
+DEFAULT_PORT=7890
+DEFAULT_BASE_URL="http://127.0.0.1"
+PORT=""
+BASE_URL=""
+NO_CHECK=0
+BASE_URL_USER_SET=0
+PORT_USER_SET=0
 
 usage() {
-	cat <<'EOF'
-Usage: setup-envs.sh [--proxy <proxy_addr|auto|none>]
+  cat <<EOF
+Usage: setup-proxy.sh [--base-url <url>] [--port <port>] [--no-check]
 
 Options:
-	--proxy    Explicit proxy address, or one of:
-						 auto (default) - detect proxy at http://127.0.0.1:7890
-						 none           - do not configure any proxy
-
-	Notes:
-	- When running inside Docker, detection also probes host.docker.internal:7890
-	  (HTTP and SOCKS5) in addition to 127.0.0.1.
-	-h, --help Show this help message and exit
+  --base-url <url>   Proxy base URL or host (default: http://127.0.0.1).
+                     If URL has no scheme, "http://" is prepended.
+  --port <port>      Proxy port (default: 7890).
+  --no-check         Skip curl connectivity check after setting proxy.
 EOF
 }
 
-SCRIPT_DIR="$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+in_docker() {
+  if [ -f "/.dockerenv" ]; then
+    return 0
+  fi
+  if [ -r /proc/1/cgroup ] && grep -q "docker" /proc/1/cgroup 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
 
-if command -v realpath >/dev/null 2>&1; then
-	CODEX_HOME=$(cd -- "$SCRIPT_DIR" && realpath ./.codex 2>/dev/null || printf '%s/.codex\n' "$SCRIPT_DIR")
-else
-	CODEX_HOME="${SCRIPT_DIR}/.codex"
-fi
-export CODEX_HOME
-
-proxy_arg="auto"
-
-while (($# > 0)); do
-	case "$1" in
-		--proxy)
-			if (($# == 1)); then
-				echo "Error: --proxy requires an argument." >&2
-				usage
-				exit 1
-			fi
-			shift
-			proxy_arg="$1"
-			;;
-		-h|--help)
-			usage
-			exit 0
-			;;
-		*)
-			echo "Error: Unknown option: $1" >&2
-			usage
-			exit 1
-			;;
-	esac
-	shift
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --port)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: --port requires a value" >&2
+        usage
+        exit 1
+      fi
+      PORT="$2"
+      PORT_USER_SET=1
+      shift 2
+      ;;
+    --base-url|--base_url)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: --base-url requires a value" >&2
+        usage
+        exit 1
+      fi
+      BASE_URL="$2"
+      BASE_URL_USER_SET=1
+      shift 2
+      ;;
+    --no-check)
+      NO_CHECK=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      usage
+      exit 1
+      ;;
+  esac
 done
 
-clear_proxy() {
-	unset HTTP_PROXY
-	unset HTTPS_PROXY
-	unset http_proxy
-	unset https_proxy
-}
-
-set_proxy() {
-	local proxy="$1"
-	export HTTP_PROXY="$proxy"
-	export HTTPS_PROXY="$proxy"
-	export http_proxy="$proxy"
-	export https_proxy="$proxy"
-}
-
-detect_local_proxy() {
-	local debug="${DEBUG_PROXY:-false}"
-
-	# Determine if we're inside a Docker/containerized environment
-	local in_docker="false"
-	if [[ -f "/.dockerenv" ]]; then
-		in_docker="true"
-	elif grep -qiE 'docker|containerd|kubepods' /proc/1/cgroup 2>/dev/null; then
-		in_docker="true"
-	elif [[ "${container:-}" == "docker" ]]; then
-		in_docker="true"
-	fi
-	[[ "$debug" == "true" ]] && echo "Debug: in_docker=$in_docker" >&2
-
-	if ! command -v curl >/dev/null 2>&1; then
-		[[ "$debug" == "true" ]] && echo "Debug: curl not found" >&2
-		return 1
-	fi
-
-	# Build candidate hosts list
-	local candidate_hosts=("127.0.0.1")
-	if [[ "$in_docker" == "true" ]]; then
-		candidate_hosts+=("host.docker.internal")
-	fi
-
-	# Check if any candidate host's port is reachable first (if nc/netcat available)
-	if command -v nc >/dev/null 2>&1; then
-		local any_open="false"
-		for h in "${candidate_hosts[@]}"; do
-			if timeout 2 nc -z "$h" 7890 2>/dev/null || nc -z -w2 "$h" 7890 2>/dev/null; then
-				[[ "$debug" == "true" ]] && echo "Debug: Port 7890 is listening on $h" >&2
-				any_open="true"
-				break
-			else
-				[[ "$debug" == "true" ]] && echo "Debug: Port 7890 not reachable on $h" >&2
-			fi
-		done
-		# Do not early-return if closed; curl checks below may still succeed in some setups
-	fi
-
-	# Use fast, reliable test URLs that don't redirect
-	local test_urls=(
-		"http://www.google.com/generate_204"
-		"http://captive.apple.com/hotspot-detect.txt"
-		"http://connectivitycheck.gstatic.com/generate_204"
-	)
-
-	# Try HTTP proxy protocol for each candidate host
-	for h in "${candidate_hosts[@]}"; do
-		local http_proxy_candidate="http://$h:7890"
-		for url in "${test_urls[@]}"; do
-			[[ "$debug" == "true" ]] && echo "Debug: Testing HTTP proxy $http_proxy_candidate with $url" >&2
-			if env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
-				curl --silent --max-time 8 --output /dev/null --proxy "$http_proxy_candidate" "$url" 2>/dev/null; then
-				[[ "$debug" == "true" ]] && echo "Debug: HTTP proxy successful via $http_proxy_candidate" >&2
-				printf '%s\n' "$http_proxy_candidate"
-				return 0
-			fi
-		done
-	done
-
-	# Try SOCKS5 proxy protocol as fallback (common for local proxies)
-	for h in "${candidate_hosts[@]}"; do
-		local socks_proxy_candidate="socks5://$h:7890"
-		for url in "${test_urls[@]}"; do
-			[[ "$debug" == "true" ]] && echo "Debug: Testing SOCKS5 proxy $socks_proxy_candidate with $url" >&2
-			if env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy \
-				curl --silent --max-time 8 --output /dev/null --socks5 "$h:7890" "$url" 2>/dev/null; then
-				[[ "$debug" == "true" ]] && echo "Debug: SOCKS5 proxy successful via $socks_proxy_candidate" >&2
-				printf '%s\n' "$socks_proxy_candidate"
-				return 0
-			fi
-		done
-	done
-
-	[[ "$debug" == "true" ]] && echo "Debug: All proxy detection attempts failed" >&2
-	return 1
-}
-
-proxy_status=""
-case "$proxy_arg" in
-	auto)
-		# Respect existing proxy configuration
-		if [[ -n "${HTTP_PROXY:-}" || -n "${HTTPS_PROXY:-}" || -n "${http_proxy:-}" || -n "${https_proxy:-}" ]]; then
-			proxy_status="kept (pre-existing)"
-		elif proxy_addr=$(detect_local_proxy); then
-			set_proxy "$proxy_addr"
-			proxy_status="detected and set to $proxy_addr"
-		else
-			clear_proxy
-			proxy_status="not set (no proxy detected)"
-		fi
-		;;
-	none)
-		clear_proxy
-		proxy_status="disabled (cleared)"
-		;;
-	*)
-		set_proxy "$proxy_arg"
-		proxy_status="explicitly set to $proxy_arg"
-		;;
-esac
-
-# Print all environment variables set by this script
-echo ""
-echo "========================================="
-echo "Environment variables configured:"
-echo "========================================="
-echo "CODEX_HOME = $CODEX_HOME"
-echo ""
-echo "Proxy status: $proxy_status"
-if [[ -n "${HTTP_PROXY:-}" || -n "${HTTPS_PROXY:-}" || -n "${http_proxy:-}" || -n "${https_proxy:-}" ]]; then
-	echo "  HTTP_PROXY  = ${HTTP_PROXY:-<not set>}"
-	echo "  HTTPS_PROXY = ${HTTPS_PROXY:-<not set>}"
-	echo "  http_proxy  = ${http_proxy:-<not set>}"
-	echo "  https_proxy = ${https_proxy:-<not set>}"
-else
-	echo "  (no proxy variables set)"
+# Case 1: no CLI overrides, but http_proxy/HTTP_PROXY already set -> reuse as-is.
+USE_ENV_PROXY=0
+ENV_HTTP_PROXY=""
+ENV_HTTP_SOURCE=""
+if [ -z "$BASE_URL" ] && [ -z "$PORT" ]; then
+  if [ -n "${http_proxy:-}" ]; then
+    ENV_HTTP_PROXY=$http_proxy
+    ENV_HTTP_SOURCE="http_proxy"
+    USE_ENV_PROXY=1
+  elif [ -n "${HTTP_PROXY:-}" ]; then
+    ENV_HTTP_PROXY=$HTTP_PROXY
+    ENV_HTTP_SOURCE="HTTP_PROXY"
+    USE_ENV_PROXY=1
+  fi
 fi
-echo "========================================="
+
+if [ "$USE_ENV_PROXY" -eq 1 ]; then
+  PROXY="$ENV_HTTP_PROXY"
+else
+  # Build proxy from base_url/port
+  [ -n "$BASE_URL" ] || BASE_URL="$DEFAULT_BASE_URL"
+  [ -n "$PORT" ] || PORT="$DEFAULT_PORT"
+
+  # Ensure scheme present; if missing, prepend http://
+  case "$BASE_URL" in
+    http://*|https://*)
+      ;;
+    *)
+      BASE_URL="http://$BASE_URL"
+      ;;
+  esac
+
+  # If inside Docker, translate localhost/127.0.0.1 to host.docker.internal
+  if in_docker; then
+    BASE_URL=$(printf '%s\n' "$BASE_URL" | sed 's#127\.0\.0\.1#host.docker.internal#g; s#localhost#host.docker.internal#g')
+  fi
+
+  # Strip trailing slash before appending port
+  BASE_STRIPPED=${BASE_URL%/}
+  PROXY="${BASE_STRIPPED}:$PORT"
+fi
+
+SOURCE_DESC="default"
+if [ "$USE_ENV_PROXY" -eq 1 ]; then
+  if [ -n "$ENV_HTTP_SOURCE" ]; then
+    SOURCE_DESC="env:$ENV_HTTP_SOURCE"
+  else
+    SOURCE_DESC="env"
+  fi
+elif [ "$BASE_URL_USER_SET" -eq 1 ] || [ "$PORT_USER_SET" -eq 1 ]; then
+  SOURCE_DESC="cli"
+else
+  SOURCE_DESC="default"
+fi
+
+export http_proxy="$PROXY"
+export https_proxy="$PROXY"
+export HTTP_PROXY="$PROXY"
+export HTTPS_PROXY="$PROXY"
+
+echo "Proxy set to: $PROXY (source: $SOURCE_DESC)"
+
+if [ "$NO_CHECK" -eq 0 ]; then
+  if command -v curl >/dev/null 2>&1; then
+    # Use a simple HTTPS endpoint to verify outbound connectivity via proxy.
+    if ! curl --max-time 5 --silent --head https://www.google.com >/dev/null 2>&1; then
+      echo "Warning: proxy check via curl failed; proxy may not be running yet." >&2
+    fi
+  else
+    echo "curl not found; skipping proxy connectivity check." >&2
+  fi
+fi

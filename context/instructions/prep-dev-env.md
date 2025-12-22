@@ -40,27 +40,8 @@ The host system provides:
 
 ## `uv` tools available (global)
 
-`uv` is installed (e.g. `uv --version`) and the following `uv tool` entries are available on this machine:
+`uv` is installed (e.g. `uv --version`) and you can use `uv tool` to find cli tools
 
-- `aider-chat` (`aider.exe`)
-- `awscli` (`aws`, `aws.cmd`, `aws_bash_completer`, `aws_completer`, `aws_zsh_completer.sh`)
-- `blender-remote` (`blender-remote-cli.exe`, `blender-remote.exe`)
-- `claude-monitor` (`ccm.exe`, `ccmonitor.exe`, `claude-code-monitor.exe`, `claude-monitor.exe`, `cmonitor.exe`)
-- `codex-as-mcp` (`codex-as-mcp.exe`)
-- `gdown` (`gdown.exe`)
-- `httpie` (`http.exe`, `httpie.exe`, `https.exe`)
-- `litellm` (`litellm-proxy.exe`, `litellm.exe`)
-- `llm` (`llm.exe`)
-- `llm-anygate` (`llm-anygate-cli.exe`, `llm-anygate.exe`)
-- `markitdown` (`markitdown.exe`)
-- `mitmproxy` (`mitmdump.exe`, `mitmproxy.exe`, `mitmweb.exe`)
-- `pgcli` (`pgcli.exe`)
-- `podman-compose` (`podman-compose.exe`)
-- `pysshpass` (`pysshpass.exe`)
-- `serena-agent` (`index-project.exe`, `serena-mcp-server.exe`, `serena.exe`)
-- `shot-scraper` (`shot-scraper.exe`)
-- `specify-cli` (`specify.exe`)
-- `vscode-offline` (`vscode-offline.exe`)
 
 Notes:
 
