@@ -1,0 +1,7 @@
+# Ignore checked out third-party source trees under extern/.
+*
+
+# Keep this directory's metadata files tracked.
+!.gitignore
+!README.md
+

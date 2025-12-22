@@ -1,38 +1,45 @@
 # Repository Guidelines
 
-本仓库为中文优先（Chinese‑first）的教学项目，聚焦 NPU 设计与实现。以下指南面向贡献者与自动化代理（agents）。
+This repository is an **English-first** tutorial project focused on NPU (Neural Processing Unit) design and implementation. Chinese materials are welcome when helpful; those files should usually include `-cn` or `.cn` in the filename (e.g., `setup-cn.md`, `README.cn.md`).
 
 ## Project Structure & Module Organization
-- `src/npu_design_tutorial/`：主 Python 包（当前为骨架）。
-- `tests/`：测试请放置于此（使用 `pytest`，文件命名 `test_*.py`）。
-- `docs/`（可选）：中文文档；英文译文建议置于 `docs/en/`。
-- 根目录脚本：`setup-envs.sh`（代理/开发环境与代理配置）。
+
+- `src/npu_design_tutorial/`: main Python package (core code lives here).
+- `tests/`: pytest suite (`test_*.py`).
+- `context/`: working context for docs, summaries, plans, and instructions (project-specific knowledge base).
+- `paper-source/`: paper artifacts, typically `paper-source/<paper-slug>/tex/...` and `paper-source/<paper-slug>/<paper-slug>.pdf`.
+- `dockers/`: optional container/dev tooling.
 
 ## Build, Test, and Development Commands
-- 进入开发环境：`pixi shell`（推荐；需已安装 pixi）。
-- 安装为可编辑包：`pip install -e .`。
-- 运行测试：`pytest -q`（首次请安装：`pip install pytest`）。
-- 构建分发包：`python -m pip install build && python -m build`（使用 hatchling 作为构建后端）。
+
+Use `pixi` for Python execution and dependency management; **do not use system** `python`/`pip`/`venv`.
+
+- Enter env: `pixi shell`
+- Run a command: `pixi run <cmd>` (example: `pixi run python -V`)
+- Editable install: `pixi run python -m pip install -e .`
+- Tests: `pixi run pytest -q`
+- Build: `pixi run python -m pip install build && pixi run python -m build`
+
+For one-off scripts and generated outputs, use `tmp/<subdir>/`.
 
 ## Coding Style & Naming Conventions
-- 语言与版本：Python 3.11+；缩进 4 空格，UTF‑8。
-- 命名：模块/函数/变量用 `snake_case`；类用 `PascalCase`；常量用 `UPPER_SNAKE_CASE`。
-- 格式与静态检查（建议）：`black`、`ruff`；导入分组 `standardlib | third‑party | local`。
-- 文档与注释：中文为主；必要术语可保留英文并附中文解释。
+
+- Python 3.11+, UTF-8, 4-space indentation.
+- Naming: `snake_case` (modules/functions/vars), `PascalCase` (classes), `UPPER_SNAKE_CASE` (constants).
+- Keep changes minimal and consistent with nearby code; use `black`/`ruff` if already configured in the project.
 
 ## Testing Guidelines
-- 框架：`pytest`；测试文件 `tests/test_*.py`；用例函数 `test_*`。
-- 关注可测性：偏向纯函数与小单元；必要时使用 fixtures。
-- 覆盖率目标（建议）：核心模块 ≥80%。
+
+- Framework: `pytest`.
+- Conventions: `tests/test_*.py`, functions `test_*`.
+- Prefer small unit tests for new logic; add fixtures only when they simplify reuse.
 
 ## Commit & Pull Request Guidelines
-- 提交信息：中文优先，遵循 Conventional Commits（如 `feat: 添加卷积算子 IR`）。
-- 示例：`fix(parser): 处理空张量形状的越界问题`。
-- PR 要求：
-  - 说明动机与变更摘要，关联 Issue（如有）。
-  - 包含测试或更新文档；附运行与验证步骤。
-  - 变更聚焦、原子化；避免无关格式化改动。
 
-## Agent‑Specific Notes
-- 遵循本文件；最小化变更范围；优先修根因并更新文档/测试。
-- 触及多个文件时，保持与现有风格一致；不要引入无必要依赖。
+- Use Conventional Commits as seen in history: `docs: ...`, `docs(dockers): ...`, `chore(dockers): ...`, `feat: ...`.
+- Keep the subject line short; use the body for rationale and verification steps; include `BREAKING CHANGE:` when applicable.
+- PRs should explain what/why, link related issues, and include tests or doc updates when behavior changes.
+
+## Agent-Specific Instructions
+
+- Prefer root-cause fixes, avoid unrelated refactors, and don’t introduce new dependencies unless explicitly required.
