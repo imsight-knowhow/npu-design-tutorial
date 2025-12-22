@@ -128,3 +128,6 @@ dmypy.json
 
 # codex
 .codex/
+
+# external sources
+/extern/vidur/
